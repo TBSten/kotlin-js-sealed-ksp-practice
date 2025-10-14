@@ -29,3 +29,7 @@ kotlin {
 dependencies {
     add("kspJs", project(":ksp-plugin"))
 }
+
+ksp {
+    arg("SealedPatternMatcherFunGenerator.moduleName", "shared")
+}
