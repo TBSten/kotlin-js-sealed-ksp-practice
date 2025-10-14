@@ -4,7 +4,8 @@
   "private": true,
   "workspaces": [
     "webApp",
-    "shared/build/dist/js/developmentLibrary"
+    "shared/build/dist/js/developmentLibrary",
+    "shared/build/generated/ksp/js/jsMain/resources/generated"
   ],
   "scripts": {
     "build": "cd webApp && npm run build",

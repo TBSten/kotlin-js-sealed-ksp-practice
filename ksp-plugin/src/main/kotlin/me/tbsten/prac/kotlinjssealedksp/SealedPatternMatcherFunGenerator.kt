@@ -4,6 +4,7 @@ import com.google.devtools.ksp.processing.CodeGenerator
 import com.google.devtools.ksp.processing.Dependencies
 import com.google.devtools.ksp.processing.Resolver
 import com.google.devtools.ksp.processing.SymbolProcessor
+import com.google.devtools.ksp.symbol.ClassKind
 import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.Modifier
@@ -12,6 +13,34 @@ class SealedPatternMatcherFunGenerator(
     private val codeGenerator: CodeGenerator,
     private val options: Map<String, String>,
 ) : SymbolProcessor {
+    val moduleName = options["SealedPatternMatcherFunGenerator.moduleName"]
+        ?: error("ksp.arg(\"SealedPatternMatcherFunGenerator.moduleName\", \"...\") が設定されていません")
+
+    init {
+        codeGenerator.createNewFile(
+            dependencies = Dependencies(false),
+            packageName = "generated",
+            fileName = "package",
+            extensionName = "json",
+        ).bufferedWriter().use { writer ->
+            writer.appendLine(
+                """
+                {
+                  "name": "$moduleName-generated",
+                  "version": "0.0.0-unspecified",
+                  "devDependencies": {
+                    "typescript": "5.8.3"
+                  },
+                  "dependencies": {},
+                  "peerDependencies": {},
+                  "optionalDependencies": {},
+                  "bundledDependencies": []
+                }
+                """.trimIndent()
+            )
+        }
+    }
+
     override fun process(resolver: Resolver): List<KSAnnotated> {
         resolver
             .getSymbolsWithAnnotation("kotlin.js.JsExport")
@@ -33,9 +62,6 @@ class SealedPatternMatcherFunGenerator(
                     extensionName = "ts",
                 ).bufferedWriter().use { writer ->
                     // import 文
-                    val moduleName = options["SealedPatternMatcherFunGenerator.moduleName"]
-                        ?: error("ksp.arg(\"SealedPatternMatcherFunGenerator.moduleName\", \"...\") が設定されていません")
-
                     writer.appendLine("""import { ${(listOf(sealedClass) + childClasses).joinToString(", ") { it.typeName }} } from "$moduleName"""")
 
                     // 関数定義
@@ -50,7 +76,19 @@ class SealedPatternMatcherFunGenerator(
 
                     // 分岐して 該当のブロックを実行する
                     childClasses.forEachIndexed { index, childClass ->
-                        writer.appendLine("""  ${if (index == 0) "if" else "} else if"}(${sealedClass.variableName} instanceof ${childClass.typeName}) {""")
+                        writer.appendLine(
+                            """  
+                            |${if (index == 0) "if" else "} else if"}(
+                            |${sealedClass.variableName} ${
+                                // object の場合は instanceof がうまく機能しないため 
+                                // getInstance() と一致するかチェックする
+                                if (childClass.classKind == ClassKind.OBJECT)
+                                    " == ${childClass.typeName}.getInstance()"
+                                else
+                                    " instanceof ${childClass.typeName}"
+                            }
+                            |) {""".trimMargin()
+                        )
                         writer.appendLine("""    return blocks.${childClass.variableName}(${sealedClass.variableName})""")
                     }
 
